@@ -7,14 +7,12 @@ Minion Lab - Stream.ai BOT
 ## Features
 
   - Auto Get Account Information
-  - Auto Run With Auto Proxy if u Choose 1 [Use [Monosans Proxy](https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/all.txt)]
-  - Auto Run With Manual Proxy if u Choose 2 [Paste Ur personal proxy in manual_proxy.txt]
-  - Auto Run Without Proxy if u Choose 3
-  - Auto Register Providers If Don't Have
+  - Auto Run With [Monosans](https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/all.txt) Proxy - Choose 1
+  - Auto Run With Private Proxy - Choose 2
+  - Auto Run Without Proxy - Choose 3
+  - Auto Create Edge ID - 20, U can change in Line 298
   - Auto Connect and Reconnect Websocket
   - Multi Accounts With Threads
-
-Note: Max Connection is 20 Each Accounts - U can change in Line 366
 
 ## Requiremnets
 
@@ -43,7 +41,7 @@ Note: Max Connection is 20 Each Accounts - U can change in Line 366
     your_user-id_2
   ```
 
-- **manual_proxy.txt:** You will find the `manual_proxy.txt` file in the project directory. Make sure `manual_proxy.txt` contains data that matches the format expected by the script. Here are examples of file formats:
+- **proxy.txt:** You will find the `proxy.txt` file in the project directory. Make sure `proxy.txt` contains data that matches the format expected by the script. Here are examples of file formats:
   ```bash
     ip:port # Default Protcol HTTP.
     protocol://ip:port
