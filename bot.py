@@ -180,84 +180,71 @@ class MinionLab:
 
                         async def send_ping_message():
                             while True:
-                                await wss.send_json({"type":"ping"})
-                                self.print_message(user_id, proxy, Fore.WHITE, 
-                                    f"Edge ID {self.mask_account(edge_id)}"
-                                    f"{Fore.MAGENTA + Style.BRIGHT} - {Style.RESET_ALL}"
-                                    f"{Fore.GREEN + Style.BRIGHT}PING Success{Style.RESET_ALL}"
-                                )
-                                await asyncio.sleep(20)
+                                try:
+                                    await wss.send_json({"type": "ping"})
+                                    self.print_message(user_id, proxy, Fore.WHITE,
+                                        f"Edge ID {self.mask_account(edge_id)} "
+                                        f"{Fore.MAGENTA + Style.BRIGHT} - {Style.RESET_ALL} "
+                                        f"{Fore.GREEN + Style.BRIGHT}PING Success{Style.RESET_ALL}"
+                                    )
+                                    await asyncio.sleep(20)
+                                except Exception:
+                                    break
 
                         if not connected:
-                            await wss.send_json({"type":"register", "user":user_id, "dev":edge_id})
-                            self.print_message(user_id, proxy, Fore.WHITE, 
+                            await wss.send_json({"type": "register", "user": user_id, "dev": edge_id})
+                            self.print_message(user_id, proxy, Fore.WHITE,
                                 f"Edge ID {self.mask_account(edge_id)}"
                                 f"{Fore.MAGENTA + Style.BRIGHT} - {Style.RESET_ALL}"
-                                f"{Fore.GREEN + Style.BRIGHT}Webscoket Is Connected{Style.RESET_ALL}"
+                                f"{Fore.GREEN + Style.BRIGHT}Websocket Is Connected{Style.RESET_ALL}"
                             )
                             connected = True
 
-                        if connected:
+                        async for msg in wss:
                             try:
-                                async for msg in wss:
-                                    if msg.data == "pong":
-                                        self.print_message(user_id, proxy, Fore.WHITE, 
-                                            f"Edge ID {self.mask_account(edge_id)}"
-                                            f"{Fore.MAGENTA + Style.BRIGHT} - {Style.RESET_ALL}"
-                                            f"{Fore.BLUE + Style.BRIGHT}PONG Received{Style.RESET_ALL}"
-                                        )
-                                    else:
-                                        response = json.loads(msg.data)
-                                        if response.get("type") == "request":
-                                            task_id = response.get("taskid")
-                                            url = response.get("data", {}).get("url")
-                                            data, status_code = await self.handle_tasks(url, proxy)
-                                            if data and status_code:
-                                                task_data = {
-                                                    "type":"response",
-                                                    "taskid":task_id,
-                                                    "result":{
-                                                        "parsed":"",
-                                                        "html":b64encode((quote(data)).encode('utf-8')).decode('utf-8'),
-                                                        "rawStatus":status_code
-                                                    }
+                                if msg.data == "pong":
+                                    self.print_message(user_id, proxy, Fore.WHITE,
+                                        f"Edge ID {self.mask_account(edge_id)}"
+                                        f"{Fore.MAGENTA + Style.BRIGHT} - {Style.RESET_ALL}"
+                                        f"{Fore.BLUE + Style.BRIGHT}PONG Received{Style.RESET_ALL}"
+                                    )
+                                else:
+                                    response = json.loads(msg.data)
+                                    if response.get("type") == "request":
+                                        task_id = response.get("taskid")
+                                        url = response.get("data", {}).get("url")
+                                        data, status_code = await self.handle_tasks(url, proxy)
+                                        if data and status_code:
+                                            task_data = {
+                                                "type": "response",
+                                                "taskid": task_id,
+                                                "result": {
+                                                    "parsed": "",
+                                                    "html": b64encode(quote(data).encode('utf-8')).decode('utf-8'),
+                                                    "rawStatus": status_code
                                                 }
-                                                await wss.send_json(task_data)
-                                                self.print_message(user_id, proxy, Fore.WHITE, 
-                                                    f"Edge ID {self.mask_account(edge_id)}"
-                                                    f"{Fore.MAGENTA + Style.BRIGHT} - {Style.RESET_ALL}"
-                                                    f"{Fore.GREEN + Style.BRIGHT}Create Connection Success{Style.RESET_ALL}"
-                                                )
-                                                if not send_ping:
-                                                    send_ping = asyncio.create_task(send_ping_message())
-
-                                            else:
-                                                self.print_message(user_id, proxy, Fore.WHITE, 
-                                                    f"Edge ID {self.mask_account(edge_id)}"
-                                                    f"{Fore.MAGENTA + Style.BRIGHT} - {Style.RESET_ALL}"
-                                                    f"{Fore.RED + Style.BRIGHT}Create Connection Failed{Style.RESET_ALL}"
-                                                )
-                                                connected = False
-                                                break
-
-                                        elif response.get("type") == "cancel":
-                                            await wss.send_json({"type":"register", "user":user_id, "dev":edge_id})
-                                            self.print_message(user_id, proxy, Fore.WHITE, 
+                                            }
+                                            await wss.send_json(task_data)
+                                            self.print_message(user_id, proxy, Fore.WHITE,
                                                 f"Edge ID {self.mask_account(edge_id)}"
                                                 f"{Fore.MAGENTA + Style.BRIGHT} - {Style.RESET_ALL}"
-                                                f"{Fore.YELLOW + Style.BRIGHT}Connection Cancelled{Style.RESET_ALL}"
+                                                f"{Fore.GREEN + Style.BRIGHT}Create Connection Success{Style.RESET_ALL}"
                                             )
-                                            connected = False
-                                            break
+                                            if send_ping is None or send_ping.done():
+                                                send_ping = asyncio.create_task(send_ping_message())
+                                        else:
+                                            raise Exception("Create Connection Failed")
+                                    elif response.get("type") == "cancel":
+                                        raise Exception("Connection Cancelled")
 
                             except Exception as e:
-                                self.print_message(user_id, proxy, Fore.WHITE, 
+                                self.print_message(user_id, proxy, Fore.WHITE,
                                     f"Edge ID {self.mask_account(edge_id)} "
                                     f"{Fore.MAGENTA + Style.BRIGHT}-{Style.RESET_ALL}"
-                                    f"{Fore.RED + Style.BRIGHT} Websocket Connection Closed: {Style.RESET_ALL}"
+                                    f"{Fore.RED + Style.BRIGHT} Websocket Connection Closed: {Style.RESET_ALL} "
                                     f"{Fore.YELLOW + Style.BRIGHT}{str(e)}{Style.RESET_ALL}"
                                 )
-                                if send_ping:
+                                if send_ping and not send_ping.done():
                                     send_ping.cancel()
                                     try:
                                         await send_ping
@@ -269,6 +256,7 @@ class MinionLab:
                                         )
 
                                 connected = False
+                                break
 
             except Exception as e:
                 self.print_message(user_id, proxy, Fore.WHITE, 
@@ -277,7 +265,7 @@ class MinionLab:
                     f"{Fore.RED + Style.BRIGHT} Websocket Not Connected: {Style.RESET_ALL}"
                     f"{Fore.YELLOW + Style.BRIGHT}{str(e)}{Style.RESET_ALL}"
                 )
-                # proxy = self.rotate_proxy_for_account(user_id) if use_proxy else None
+                proxy = self.rotate_proxy_for_account(user_id) if use_proxy else None
                 await asyncio.sleep(5)
 
             except asyncio.CancelledError:
@@ -291,7 +279,7 @@ class MinionLab:
                 await session.close()
 
     async def process_accounts(self, user_id: str, proxy_count: int, use_proxy: bool):
-        proxy = None
+        proxy = self.get_next_proxy_for_account(user_id) if use_proxy else None
         tasks = []
 
         if use_proxy:
@@ -301,8 +289,8 @@ class MinionLab:
             for i in range(connections_to_create):
                 proxy_count -= 1
                 edge_id = self.generate_edge_id()
-                proxy = self.rotate_proxy_for_account(user_id)
                 tasks.append(self.connect_websocket(user_id, edge_id, use_proxy, proxy))
+                proxy = self.rotate_proxy_for_account(user_id)
 
         else:
             edge_id = self.generate_edge_id()
