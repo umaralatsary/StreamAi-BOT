@@ -241,7 +241,7 @@ class MinionLab:
                                 self.print_message(user_id, proxy, Fore.WHITE,
                                     f"Edge ID {self.mask_account(edge_id)} "
                                     f"{Fore.MAGENTA + Style.BRIGHT}-{Style.RESET_ALL}"
-                                    f"{Fore.RED + Style.BRIGHT} Websocket Connection Closed: {Style.RESET_ALL} "
+                                    f"{Fore.RED + Style.BRIGHT} Websocket Connection Closed: {Style.RESET_ALL}"
                                     f"{Fore.YELLOW + Style.BRIGHT}{str(e)}{Style.RESET_ALL}"
                                 )
                                 if send_ping and not send_ping.done():
