@@ -298,7 +298,7 @@ class MinionLab:
                     f"{Fore.RED + Style.BRIGHT} Websocket Not Connected: {Style.RESET_ALL}"
                     f"{Fore.YELLOW + Style.BRIGHT}{str(e)}{Style.RESET_ALL}"
                 )
-                # proxy = self.rotate_proxy_for_account(user_id) if use_proxy else None
+                proxy = self.rotate_proxy_for_account(user_id) if use_proxy else None
                 await asyncio.sleep(5)
 
             except asyncio.CancelledError:
