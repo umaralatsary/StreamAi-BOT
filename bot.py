@@ -298,7 +298,7 @@ class MinionLab:
                     f"{Fore.RED + Style.BRIGHT} Websocket Not Connected: {Style.RESET_ALL}"
                     f"{Fore.YELLOW + Style.BRIGHT}{str(e)}{Style.RESET_ALL}"
                 )
-                proxy = self.rotate_proxy_for_account(user_id) if use_proxy else None
+                proxy = self.rotate_proxy_for_account(edge_id) if use_proxy else None
                 await asyncio.sleep(5)
 
             except asyncio.CancelledError:
@@ -312,17 +312,17 @@ class MinionLab:
                 await session.close()
 
     async def process_accounts(self, user_id: str, proxy_count: int, use_proxy: bool):
-        proxy = self.get_next_proxy_for_account(user_id) if use_proxy else None
-        tasks = []
+        proxy = None
 
+        tasks = []
         if use_proxy:
             max_connections = 20 # U Can Change it
             connections_to_create = min(proxy_count, max_connections)
 
             for i in range(connections_to_create):
                 edge_id = self.generate_edge_id()
+                proxy = self.get_next_proxy_for_account(edge_id) if use_proxy else None
                 tasks.append(self.connect_websocket(user_id, edge_id, use_proxy, proxy))
-                proxy = self.rotate_proxy_for_account(user_id)
                 proxy_count -= 1
                 self.total_edge += 1
         else:
