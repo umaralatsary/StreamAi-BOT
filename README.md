@@ -10,7 +10,7 @@ Minion Lab - Stream.ai BOT
   - Auto Run With [Monosans](https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/all.txt) Proxy - Choose 1
   - Auto Run With Private Proxy - Choose 2
   - Auto Run Without Proxy - Choose 3
-  - Auto Create Edge ID - 20, U can change in Line 319
+  - Auto Create Edge ID
   - Auto Connect and Reconnect Websocket
   - Multi Accounts With Threads
 

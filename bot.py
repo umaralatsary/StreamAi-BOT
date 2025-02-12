@@ -165,11 +165,25 @@ class MinionLab:
                         "Run Without Proxy"
                     )
                     print(f"{Fore.GREEN + Style.BRIGHT}{proxy_type} Selected.{Style.RESET_ALL}")
-                    return choose
+                    break
                 else:
                     print(f"{Fore.RED + Style.BRIGHT}Please enter either 1, 2 or 3.{Style.RESET_ALL}")
             except ValueError:
                 print(f"{Fore.RED + Style.BRIGHT}Invalid input. Enter a number (1, 2 or 3).{Style.RESET_ALL}")
+
+        nodes_count = 0
+        if choose in [1, 2]:
+            while True:
+                try:
+                    nodes_count = int(input("How Many Edge Ids Do You Want to Run For Each Account? -> "))
+                    if nodes_count > 0:
+                        break
+                    else:
+                        print(f"{Fore.RED+Style.BRIGHT}Please enter a positive number.{Style.RESET_ALL}")
+                except ValueError:
+                    print(f"{Fore.RED+Style.BRIGHT}Invalid input. Enter a number.{Style.RESET_ALL}")
+
+        return nodes_count, choose
 
     async def handle_tasks(self, url, proxy=None, retries=5):
         for attempt in range(retries):
@@ -186,11 +200,12 @@ class MinionLab:
 
                 return None
         
-    async def connect_websocket(self, user_id, edge_id: str, use_proxy: bool, proxy=None):
+    async def connect_websocket(self, user_id, edge_id: str, use_proxy: bool):
         wss_url = "wss://gw0.streamapp365.com/connect"
         connected = False
 
         while True:
+            proxy = self.get_next_proxy_for_account(edge_id) if use_proxy else None
             connector = ProxyConnector.from_url(proxy) if proxy else None
             session = ClientSession(connector=connector, timeout=ClientTimeout(total=120))
             try:
@@ -298,7 +313,7 @@ class MinionLab:
                     f"{Fore.RED + Style.BRIGHT} Websocket Not Connected: {Style.RESET_ALL}"
                     f"{Fore.YELLOW + Style.BRIGHT}{str(e)}{Style.RESET_ALL}"
                 )
-                proxy = self.rotate_proxy_for_account(edge_id) if use_proxy else None
+                self.rotate_proxy_for_account(edge_id) if use_proxy else None
                 await asyncio.sleep(5)
 
             except asyncio.CancelledError:
@@ -311,23 +326,16 @@ class MinionLab:
             finally:
                 await session.close()
 
-    async def process_accounts(self, user_id: str, proxy_count: int, use_proxy: bool):
-        proxy = None
-
+    async def process_accounts(self, user_id: str, nodes_count: int, use_proxy: bool):
         tasks = []
         if use_proxy:
-            max_connections = 20 # U Can Change it
-            connections_to_create = min(proxy_count, max_connections)
-
-            for i in range(connections_to_create):
+            for i in range(nodes_count):
                 edge_id = self.generate_edge_id()
-                proxy = self.get_next_proxy_for_account(edge_id) if use_proxy else None
-                tasks.append(self.connect_websocket(user_id, edge_id, use_proxy, proxy))
-                proxy_count -= 1
+                tasks.append(asyncio.create_task(self.connect_websocket(user_id, edge_id, use_proxy)))
                 self.total_edge += 1
         else:
             edge_id = self.generate_edge_id()
-            tasks.append(self.connect_websocket(user_id, edge_id, use_proxy, proxy))
+            tasks.append(asyncio.create_task(self.connect_websocket(user_id, edge_id, use_proxy)))
             self.total_edge += 1
 
         await asyncio.gather(*tasks)
@@ -337,7 +345,7 @@ class MinionLab:
             with open('userids.txt', 'r') as file:
                 user_ids = [line.strip() for line in file if line.strip()]
 
-            use_proxy_choice = self.print_question()
+            nodes_count, use_proxy_choice = self.print_question()
 
             use_proxy = False
             if use_proxy_choice in [1, 2]:
@@ -357,18 +365,16 @@ class MinionLab:
 
             while True:
                 tasks = []
-                proxy_count = len(self.proxies)
                 for user_id in user_ids:
-                    user_id = user_id.strip()
                     if user_id:
-                        tasks.append(self.process_accounts(user_id, proxy_count, use_proxy))
+                        tasks.append(asyncio.create_task(self.process_accounts(user_id, nodes_count, use_proxy)))
 
                 tasks.append(self.print_edge_ids_estabilished())
                 await asyncio.gather(*tasks)
                 await asyncio.sleep(10)
 
         except FileNotFoundError:
-            self.log(f"{Fore.RED}File 'userids.txt' tidak ditemukan.{Style.RESET_ALL}")
+            self.log(f"{Fore.RED}File 'userids.txt' Not Found.{Style.RESET_ALL}")
             return
         except Exception as e:
             self.log(f"{Fore.RED+Style.BRIGHT}Error: {e}{Style.RESET_ALL}")
