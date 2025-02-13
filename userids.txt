@@ -1,2 +1,0 @@
-your_uuid_1
-your_uuid_2

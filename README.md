@@ -10,7 +10,7 @@ Minion Lab - Stream.ai BOT
   - Auto Run With [Monosans](https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/all.txt) Proxy - Choose 1
   - Auto Run With Private Proxy - Choose 2
   - Auto Run Without Proxy - Choose 3
-  - Auto Create Edge ID
+  - Auto Create or Use Exiting Edge ID
   - Auto Connect and Reconnect Websocket
   - Multi Accounts With Threads
 
@@ -35,17 +35,25 @@ Minion Lab - Stream.ai BOT
 
 ## Configuration
 
-- **userids.txt:** You will find the `userids.txt` file in the project directory. Make sure `userids.txt` contains data that matches the format expected by the script. Here are examples of file formats:
+- **accounts.json:** You will find the `accounts.json` file in the project directory. Make sure `accounts.json` contains data that matches the format expected by the script. Here are examples of file formats:
   ```bash
-    your_uuid_1
-    your_uuid_2
+  [
+      {
+          "Email": "your email address 1",
+          "Password": "your password 1"
+      },
+      {
+          "Email": "your email address 2",
+          "Password": "your password 2"
+      }
+  ]
   ```
 
 - **proxy.txt:** You will find the `proxy.txt` file in the project directory. Make sure `proxy.txt` contains data that matches the format expected by the script. Here are examples of file formats:
   ```bash
-    ip:port # Default Protcol HTTP.
-    protocol://ip:port
-    protocol://user:pass@ip:port
+  ip:port # Default Protcol HTTP.
+  protocol://ip:port
+  protocol://user:pass@ip:port
   ```
 
 ## Run
