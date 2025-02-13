@@ -241,13 +241,18 @@ class MinionLab:
             "Content-Length": str(len(data)),
             "Content-Type": "application/json"
         }
-        try:
-            response = await asyncio.to_thread(requests.post, url=url, headers=headers, data=data, proxy=proxy, timeout=60, impersonate="safari15_5")
-            response.raise_for_status()
-            result = response.json()
-            return result['data']
-        except Exception as e:
-            return self.print_message(email, proxy, Fore.RED, f"Login Failed: {Fore.YELLOW + Style.BRIGHT}{str(e)}")
+        for attempt in range(retries):
+            try:
+                response = await asyncio.to_thread(requests.post, url=url, headers=headers, data=data, proxy=proxy, timeout=60, impersonate="safari15_5")
+                response.raise_for_status()
+                result = response.json()
+                return result['data']
+            except Exception as e:
+                if attempt < retries - 1:
+                    await asyncio.sleep(5)
+                    continue
+
+                return self.print_message(email, proxy, Fore.RED, f"Login Failed: {Fore.YELLOW + Style.BRIGHT}{str(e)}")
                   
     async def user_devices(self, email: str, token: str, proxy=None, retries=5):
         url = "https://api.minionlab.ai/web/v1/dashBoard/device/list"
@@ -472,6 +477,7 @@ class MinionLab:
         try:
             accounts = self.load_accounts()
             if not accounts:
+                self.log(f"{Fore.RED+Style.BRIGHT}No Accounts Loaded.{Style.RESET_ALL}")
                 return
 
             nodes_count, proxy_choice, connection_choice = self.print_question()
