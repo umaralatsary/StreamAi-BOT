@@ -131,16 +131,16 @@ class MinionLab:
         return proxy
     
     def generate_edge_id(self):
-        hex_chars = '0123456789abcdef'
+        hex_chars = '0123456789abcdefghijklmnopqrstuvwxyz'
         edge_id = ''.join(random.choice(hex_chars) for _ in range(32))
         return edge_id
     
     def mask_account(self, account):
         if "@" in account:
-            local, domain = account.split("@", 1)
+            local, domain = account.split('@', 1)
             mask_account = local[:3] + '*' * 3 + local[-3:]
-            return f"{mask_account}{domain}"
-
+            return f"{mask_account}@{domain}"
+        
         mask_account = account[:3] + '*' * 3 + account[-3:]
         return mask_account
 
@@ -176,13 +176,13 @@ class MinionLab:
             try:
                 print("1. Use Exiting Edge Ids")
                 print("2. Create New Edge Ids")
-                connection_choice = int(input("Choose [1/2/3] -> ").strip())
-                if connection_choice in [1, 2, 3]:
+                connection_choice = int(input("Choose [1/2] -> ").strip())
+                if connection_choice in [1, 2]:
                     break
                 else:
-                    print(f"{Fore.RED+Style.BRIGHT}Please enter a positive number.{Style.RESET_ALL}")
+                    print(f"{Fore.RED+Style.BRIGHT}Please enter either 1 or 2.{Style.RESET_ALL}")
             except ValueError:
-                print(f"{Fore.RED+Style.BRIGHT}Invalid input. Enter a number.{Style.RESET_ALL}")
+                print(f"{Fore.RED+Style.BRIGHT}Invalid input. Enter a number (1 or 2).{Style.RESET_ALL}")
 
         while True:
             try:
@@ -233,7 +233,7 @@ class MinionLab:
 
                 return None
             
-    async def user_login(self, email: str, password: str, proxy=None, retries=5):
+    async def user_login(self, email: str, password: str, proxy=None):
         url = "https://api.minionlab.ai/web/v1/auth/emailLogin"
         data = json.dumps({"email":email, "code":"", "password":password, "referralCode":"zwYPzVWI"})
         headers = {
@@ -241,18 +241,13 @@ class MinionLab:
             "Content-Length": str(len(data)),
             "Content-Type": "application/json"
         }
-        for attempt in range(retries):
-            try:
-                response = await asyncio.to_thread(requests.post, url=url, headers=headers, data=data, proxy=proxy, timeout=60, impersonate="safari15_5")
-                response.raise_for_status()
-                result = response.json()
-                return result['data']
-            except Exception as e:
-                if attempt < retries - 1:
-                    await asyncio.sleep(5)
-                    continue
-
-                return self.print_message(email, proxy, Fore.RED, f"Login Failed: {Fore.YELLOW + Style.BRIGHT}{str(e)}")
+        try:
+            response = await asyncio.to_thread(requests.post, url=url, headers=headers, data=data, proxy=proxy, timeout=60, impersonate="safari15_5")
+            response.raise_for_status()
+            result = response.json()
+            return result['data']
+        except Exception as e:
+            return self.print_message(email, proxy, Fore.RED, f"Login Failed: {Fore.YELLOW + Style.BRIGHT}{str(e)}")
                   
     async def user_devices(self, email: str, token: str, proxy=None, retries=5):
         url = "https://api.minionlab.ai/web/v1/dashBoard/device/list"
@@ -265,7 +260,7 @@ class MinionLab:
                 response = await asyncio.to_thread(requests.get, url=url, headers=headers, proxy=proxy, timeout=60, impersonate="safari15_5")
                 response.raise_for_status()
                 result = response.json()
-                return result['data']['rows']
+                return result['data']
             except Exception as e:
                 if attempt < retries - 1:
                     await asyncio.sleep(5)
@@ -297,12 +292,11 @@ class MinionLab:
             session = ClientSession(connector=connector, timeout=ClientTimeout(total=60))
             try:
                 async with session.ws_connect(wss_url, headers=headers) as wss:
-
                     async def send_ping_message():
                         while True:
                             await wss.send_json({"type":"ping"})
                             self.print_message(email, proxy, Fore.WHITE,
-                                f"Edge ID {self.mask_account(edge_id)}"
+                                f"Edge ID {edge_id}"
                                 f"{Fore.MAGENTA + Style.BRIGHT} - {Style.RESET_ALL}"
                                 f"{Fore.GREEN + Style.BRIGHT}PING Success{Style.RESET_ALL}"
                             )
@@ -311,7 +305,7 @@ class MinionLab:
                     if not connected:
                         await wss.send_json({"type":"register", "user":user_id, "dev":edge_id})
                         self.print_message(email, proxy, Fore.WHITE,
-                            f"Edge ID {self.mask_account(edge_id)}"
+                            f"Edge ID {edge_id}"
                             f"{Fore.MAGENTA + Style.BRIGHT} - {Style.RESET_ALL}"
                             f"{Fore.GREEN + Style.BRIGHT}Websocket Is Connected{Style.RESET_ALL}"
                         )
@@ -323,56 +317,60 @@ class MinionLab:
                     while connected:
                         if send_ping is None and ready_to_ping:
                             send_ping = asyncio.create_task(send_ping_message())
-
                         try:
-                            response = await wss.receive_json()
-                            if response.get("type") == "request":
-                                url = response.get("data", {}).get("url")
-                                task_id = response.get("taskid")
-                                data = await self.handle_tasks(url, proxy)
-                                if data:
-                                    task_message = {
-                                        "type":"response",
-                                        "taskid":task_id,
-                                        "result": {
-                                            "parsed":"",
-                                            "html":b64encode(quote(data).encode('utf-8')).decode('utf-8'),
-                                            "rawStatus":200
+                            response = await wss.receive()
+                            try:
+                                response_data = json.loads(response.data)
+                            except (json.JSONDecodeError, TypeError):
+                                response_data = response.data
+                            
+                            if isinstance(response_data, dict):
+                                if response_data.get("type") == "request":
+                                    url = response_data.get("data", {}).get("url")
+                                    task_id = response_data.get("taskid")
+                                    data = await self.handle_tasks(url, proxy)
+                                    if data:
+                                        task_message = {
+                                            "type":"response",
+                                            "taskid":task_id,
+                                            "result": {
+                                                "parsed":"",
+                                                "html":b64encode(quote(data).encode('utf-8')).decode('utf-8'),
+                                                "rawStatus":200
+                                            }
                                         }
-                                    }
-                                    await wss.send_json(task_message)
+                                        await wss.send_json(task_message)
+                                        self.print_message(email, proxy, Fore.WHITE,
+                                            f"Edge ID {edge_id}"
+                                            f"{Fore.MAGENTA + Style.BRIGHT} - {Style.RESET_ALL}"
+                                            f"{Fore.GREEN + Style.BRIGHT}Create Connection Success{Style.RESET_ALL}"
+                                        )
+                                        ready_to_ping = True
+                                            
+                                    else:
+                                        self.print_message(email, proxy, Fore.WHITE,
+                                            f"Edge ID {edge_id}"
+                                            f"{Fore.MAGENTA + Style.BRIGHT} - {Style.RESET_ALL}"
+                                            f"{Fore.YELLOW + Style.BRIGHT}Create Connection Failed{Style.RESET_ALL}"
+                                        )
+
+                                elif response_data.get("type") == "cancel":
                                     self.print_message(email, proxy, Fore.WHITE,
-                                        f"Edge ID {self.mask_account(edge_id)}"
+                                        f"Edge ID {edge_id}"
                                         f"{Fore.MAGENTA + Style.BRIGHT} - {Style.RESET_ALL}"
-                                        f"{Fore.GREEN + Style.BRIGHT}Create Connection Success{Style.RESET_ALL}"
-                                    )
-                                    ready_to_ping = True
-                                        
-                                else:
-                                    self.print_message(email, proxy, Fore.WHITE,
-                                        f"Edge ID {self.mask_account(edge_id)}"
-                                        f"{Fore.MAGENTA + Style.BRIGHT} - {Style.RESET_ALL}"
-                                        f"{Fore.YELLOW + Style.BRIGHT}Create Connection Failed{Style.RESET_ALL}"
+                                        f"{Fore.YELLOW + Style.BRIGHT}Connection Cancelled{Style.RESET_ALL}"
                                     )
 
-                            elif response.get("type") == "cancel":
+                            elif isinstance(response_data, str) and response_data.strip().lower() == "pong":
                                 self.print_message(email, proxy, Fore.WHITE,
-                                    f"Edge ID {self.mask_account(edge_id)}"
-                                    f"{Fore.MAGENTA + Style.BRIGHT} - {Style.RESET_ALL}"
-                                    f"{Fore.YELLOW + Style.BRIGHT}Connection Cancelled{Style.RESET_ALL}"
-                                )
-
-                        except json.JSONDecodeError:
-                            response = await wss.receive_str()
-                            if response.strip() == "pong":
-                                self.print_message(email, proxy, Fore.WHITE,
-                                    f"Edge ID {self.mask_account(edge_id)}"
+                                    f"Edge ID {edge_id}"
                                     f"{Fore.MAGENTA + Style.BRIGHT} - {Style.RESET_ALL}"
                                     f"{Fore.BLUE + Style.BRIGHT}PONG Received{Style.RESET_ALL}"
                                 )
+
                         except Exception as e:
                             self.print_message(email, proxy, Fore.WHITE,
-                                f"Edge ID {self.mask_account(edge_id)} "
+                                f"Edge ID {edge_id} "
                                 f"{Fore.MAGENTA + Style.BRIGHT}-{Style.RESET_ALL}"
                                 f"{Fore.RED + Style.BRIGHT} Websocket Connection Closed: {Style.RESET_ALL}"
                                 f"{Fore.YELLOW + Style.BRIGHT}{str(e)}{Style.RESET_ALL}"
@@ -395,7 +393,7 @@ class MinionLab:
 
             except Exception as e:
                 self.print_message(email, proxy, Fore.WHITE, 
-                    f"Edge ID {self.mask_account(edge_id)} "
+                    f"Edge ID {edge_id} "
                     f"{Fore.MAGENTA + Style.BRIGHT}-{Style.RESET_ALL}"
                     f"{Fore.RED + Style.BRIGHT} Websocket Not Connected: {Style.RESET_ALL}"
                     f"{Fore.YELLOW + Style.BRIGHT}{str(e)}{Style.RESET_ALL}"
@@ -404,7 +402,7 @@ class MinionLab:
 
             except asyncio.CancelledError:
                 self.print_message(email, proxy, Fore.WHITE, 
-                    f"Edge ID {self.mask_account(edge_id)}"
+                    f"Edge ID {edge_id}"
                     f"{Fore.MAGENTA + Style.BRIGHT} - {Style.RESET_ALL}"
                     f"{Fore.YELLOW + Style.BRIGHT}Websocket Closed{Style.RESET_ALL}"
                 )
@@ -431,47 +429,60 @@ class MinionLab:
         
     async def process_user_devices(self, email: str, token: str, nodes_count: int, use_proxy: bool, connection_choice: int):
         proxy = self.get_next_proxy_for_account(email) if use_proxy else None
-
         devices = []
-
         if connection_choice == 1:
-            device_lists = await self.user_devices(email, token, proxy)
-            if not device_lists:
-                edge_id = self.generate_edge_id()
-                return devices.append({"EdgeId":edge_id})
-            
-            for device in device_lists[:nodes_count]:
-                if device:
-                    edge_id = device.get("name")
-                    devices.append({"EdgeId":edge_id})
+            device_lists = None
+            while device_lists is None:
+                device_lists = await self.user_devices(email, token, proxy)
+                if not device_lists:
+                    proxy = self.rotate_proxy_for_account(email) if use_proxy else None
+                    await asyncio.sleep(5)
+                    continue
 
-            return devices
-
-        else:
-            for i in range(nodes_count):
+                exciting_devices = device_lists.get("rows", [])
+                if use_proxy:
+                    if isinstance(exciting_devices, list) and len(exciting_devices) == 0:
+                        for _ in range(nodes_count):
+                            edge_id = self.generate_edge_id()
+                            devices.append({"EdgeId":edge_id})
+                        return devices
+                
+                    for device in exciting_devices[:nodes_count]:
+                        if device:
+                            edge_id = device.get("name")
+                            devices.append({"EdgeId":edge_id})
+                    return devices
+                
+                for device in exciting_devices[:1]:
+                    if device:
+                        edge_id = device.get("name")
+                        devices.append({"EdgeId":edge_id})
+                return devices
+                
+        if use_proxy:
+            for _ in range(nodes_count):
                 edge_id = self.generate_edge_id()
                 devices.append({"EdgeId":edge_id})
-
             return devices
+        
+        edge_id = self.generate_edge_id()
+        devices.append({"EdgeId":edge_id})
+        return devices
+            
 
     async def process_accounts(self, email: str, password: str, nodes_count: int, use_proxy: bool, connection_choice: int):
         token, user_id = await self.process_user_login(email, password, use_proxy)
         if token and user_id:
-
-            tasks = []
-            if use_proxy:
-                devices = await self.process_user_devices(email, token, nodes_count, use_proxy, connection_choice)
+            devices = await self.process_user_devices(email, token, nodes_count, use_proxy, connection_choice)
+            if devices:
+                tasks = []
                 for device in devices:
                     if device:
                         edge_id = device.get("EdgeId")
                         tasks.append(asyncio.create_task(self.connect_websocket(email, user_id, edge_id, use_proxy)))
                         self.total_edge += 1
-            else:
-                edge_id = self.generate_edge_id()
-                tasks.append(asyncio.create_task(self.connect_websocket(email, user_id, edge_id, use_proxy)))
-                self.total_edge += 1
 
-            await asyncio.gather(*tasks)
+                await asyncio.gather(*tasks)
 
     async def main(self):
         try:
