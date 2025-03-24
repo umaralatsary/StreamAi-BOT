@@ -467,7 +467,7 @@ class MinionLab:
             while device_lists is None:
                 device_lists = await self.user_devices(email, token, proxy)
                 if not device_lists:
-                    proxy = self.rotate_proxy_for_account(email) if use_proxy else None
+                    proxy = await self.rotate_proxy_for_account(email) if use_proxy else None
                     await asyncio.sleep(5)
                     continue
 
