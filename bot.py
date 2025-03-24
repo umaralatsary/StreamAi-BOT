@@ -329,7 +329,7 @@ class MinionLab:
                 
                 proxy = await self.get_next_proxy_for_account(edge_id) if use_proxy else None
                 connector = ProxyConnector.from_url(proxy) if proxy else None
-                timeout = ClientTimeout(total=60, connect=30, sock_connect=30)
+                timeout = ClientTimeout(total=60, connect=60, sock_connect=60)
                 session = ClientSession(connector=connector, timeout=timeout)
     
                 async with session.ws_connect(wss_url, headers=headers, heartbeat=20) as wss:
