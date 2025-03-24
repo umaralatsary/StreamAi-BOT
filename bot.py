@@ -321,6 +321,7 @@ class MinionLab:
         session = None
         retry_count = 0
         max_retries = 5
+        connection_timeout = 30
     
         while True and retry_count < max_retries:
             try:
@@ -329,111 +330,88 @@ class MinionLab:
                 
                 proxy = await self.get_next_proxy_for_account(edge_id) if use_proxy else None
                 connector = ProxyConnector.from_url(proxy) if proxy else None
-                timeout = ClientTimeout(total=60, connect=60, sock_connect=60)
+                timeout = ClientTimeout(total=60, connect=connection_timeout, sock_connect=connection_timeout)
                 session = ClientSession(connector=connector, timeout=timeout)
     
-                async with session.ws_connect(wss_url, headers=headers, heartbeat=20) as wss:
-                    async def send_ping_message():
-                        try:
-                            while True:
-                                await wss.send_json({"type":"ping"})
-                                self.print_message(email, proxy, Fore.WHITE,
-                                    f"Edge ID {edge_id}"
-                                    f"{Fore.MAGENTA + Style.BRIGHT} - {Style.RESET_ALL}"
-                                    f"{Fore.GREEN + Style.BRIGHT}PING Success{Style.RESET_ALL}"
-                                )
-                                await asyncio.sleep(20)
-                        except asyncio.CancelledError:
-                            return
-                        except Exception:
-                            return
-    
-                    if not connected:
-                        await wss.send_json({"type":"register", "user":user_id, "dev":edge_id})
-                        self.print_message(email, proxy, Fore.WHITE,
-                            f"Edge ID {edge_id}"
-                            f"{Fore.MAGENTA + Style.BRIGHT} - {Style.RESET_ALL}"
-                            f"{Fore.GREEN + Style.BRIGHT}Websocket Is Connected{Style.RESET_ALL}"
-                        )
-                        self.edge_estabilished += 1
-                        connected = True
-                        ready_to_ping = False
-    
-                    while connected:
-                        if send_ping is None and ready_to_ping:
-                            send_ping = asyncio.create_task(send_ping_message())
-                        try:
-                            response = await wss.receive()
-                            try:
-                                response_data = json.loads(response.data)
-                            except (json.JSONDecodeError, TypeError):
-                                response_data = response.data
-    
-                            if isinstance(response_data, dict):
-                                if response_data.get("type") == "request":
-                                    url = response_data.get("data", {}).get("url")
-                                    task_id = response_data.get("taskid")
-                                    data = await self.handle_tasks(url, proxy)
-                                    if data:
-                                        task_message = {
-                                            "type":"response",
-                                            "taskid":task_id,
-                                            "result": {
-                                                "parsed":"",
-                                                "html":b64encode(quote(data).encode('utf-8')).decode('utf-8'),
-                                                "rawStatus":200
-                                            }
-                                        }
-                                        await wss.send_json(task_message)
+                try:
+                    async with asyncio.timeout(connection_timeout):
+                        async with session.ws_connect(wss_url, headers=headers, heartbeat=20) as wss:
+                            async def send_ping_message():
+                                try:
+                                    while True:
+                                        await wss.send_json({"type":"ping"})
                                         self.print_message(email, proxy, Fore.WHITE,
                                             f"Edge ID {edge_id}"
                                             f"{Fore.MAGENTA + Style.BRIGHT} - {Style.RESET_ALL}"
-                                            f"{Fore.GREEN + Style.BRIGHT}Create Connection Success{Style.RESET_ALL}"
+                                            f"{Fore.GREEN + Style.BRIGHT}PING Success{Style.RESET_ALL}"
                                         )
-                                        ready_to_ping = True
+                                        await asyncio.sleep(20)
+                                except asyncio.CancelledError:
+                                    return
+                                except Exception:
+                                    return
     
-                                    else:
-                                        self.print_message(email, proxy, Fore.WHITE,
-                                            f"Edge ID {edge_id}"
-                                            f"{Fore.MAGENTA + Style.BRIGHT} - {Style.RESET_ALL}"
-                                            f"{Fore.YELLOW + Style.BRIGHT}Create Connection Failed{Style.RESET_ALL}"
-                                        )
-    
-                                elif response_data.get("type") == "cancel":
+                            if not connected:
+                                async with asyncio.timeout(20):
+                                    await wss.send_json({"type":"register", "user":user_id, "dev":edge_id})
                                     self.print_message(email, proxy, Fore.WHITE,
                                         f"Edge ID {edge_id}"
                                         f"{Fore.MAGENTA + Style.BRIGHT} - {Style.RESET_ALL}"
-                                        f"{Fore.YELLOW + Style.BRIGHT}Connection Cancelled{Style.RESET_ALL}"
+                                        f"{Fore.GREEN + Style.BRIGHT}Websocket Is Connected{Style.RESET_ALL}"
                                     )
+                                    self.edge_estabilished += 1
+                                    connected = True
+                                    ready_to_ping = False
     
-                            elif isinstance(response_data, str) and response_data.strip().lower() == "pong":
-                                self.print_message(email, proxy, Fore.WHITE,
-                                    f"Edge ID {edge_id}"
-                                    f"{Fore.MAGENTA + Style.BRIGHT} - {Style.RESET_ALL}"
-                                    f"{Fore.BLUE + Style.BRIGHT}PONG Received{Style.RESET_ALL}"
-                                )
-    
-                        except Exception as e:
-                            if send_ping and not send_ping.done():
-                                send_ping.cancel()
+                            while connected:
+                                if send_ping is None and ready_to_ping:
+                                    send_ping = asyncio.create_task(send_ping_message())
                                 try:
-                                    await send_ping
-                                except asyncio.CancelledError:
-                                    pass
-                                except Exception:
-                                    pass
-                                send_ping = None
+                                    async with asyncio.timeout(30):
+                                        response = await wss.receive()
+                                        
+                                    try:
+                                        response_data = json.loads(response.data)
+                                    except (json.JSONDecodeError, TypeError):
+                                        response_data = response.data
     
-                            self.print_message(email, proxy, Fore.WHITE,
-                                f"Edge ID {edge_id} "
-                                f"{Fore.MAGENTA + Style.BRIGHT}-{Style.RESET_ALL}"
-                                f"{Fore.RED + Style.BRIGHT} Websocket Connection Closed: {Style.RESET_ALL}"
-                                f"{Fore.YELLOW + Style.BRIGHT}{str(e)}{Style.RESET_ALL}"
-                            )
-                            await asyncio.sleep(5)
-                            self.edge_estabilished -= 1
-                            connected = False
-                            break
+                                    if isinstance(response_data, dict):
+                                        if response_data.get("type") == "request":
+                                            url = response_data.get("data", {}).get("url")
+                                            task_id = response_data.get("taskid")
+
+                                            async with asyncio.timeout(30):
+                                                data = await self.handle_tasks(url, proxy)
+                                            if data:
+                                                task_message = {
+                                                    "type":"response",
+                                                    "taskid":task_id,
+                                                    "result": {
+                                                        "parsed":"",
+                                                        "html":b64encode(quote(data).encode('utf-8')).decode('utf-8'),
+                                                        "rawStatus":200
+                                                    }
+                                                }
+                                                await wss.send_json(task_message)
+                                                self.print_message(email, proxy, Fore.WHITE,
+                                                    f"Edge ID {edge_id}"
+                                                    f"{Fore.MAGENTA + Style.BRIGHT} - {Style.RESET_ALL}"
+                                                    f"{Fore.GREEN + Style.BRIGHT}Create Connection Success{Style.RESET_ALL}"
+                                                )
+                                                ready_to_ping = True
+                                            else:
+                                                raise Exception("Failed to handle task")
+    
+                                except asyncio.TimeoutError:
+                                    raise Exception("Connection timeout")
+                                except Exception as e:
+                                    if send_ping and not send_ping.done():
+                                        send_ping.cancel()
+                                    connected = False
+                                    break
+    
+                except asyncio.TimeoutError:
+                    raise Exception(f"Connection timeout after {connection_timeout} seconds")
     
             except Exception as e:
                 retry_count += 1
@@ -451,37 +429,16 @@ class MinionLab:
                     f"{Fore.RED + Style.BRIGHT} Websocket Not Connected: {Style.RESET_ALL}"
                     f"{Fore.YELLOW + Style.BRIGHT}{str(e)}{Style.RESET_ALL}"
                 )
-                if retry_count >= max_retries:
+                
+                if retry_count >= max_retries or "Connection timeout" in str(e):
+                    self.edge_estabilished -= 1 if connected else 0
                     break
+                    
                 await asyncio.sleep(5)
-    
-            except asyncio.CancelledError:
-                if send_ping and not send_ping.done():
-                    send_ping.cancel()
-                    try:
-                        await send_ping
-                    except asyncio.CancelledError:
-                        pass
-                    except Exception:
-                        pass
-                    send_ping = None
-    
-                self.print_message(email, proxy, Fore.WHITE, 
-                    f"Edge ID {edge_id}"
-                    f"{Fore.MAGENTA + Style.BRIGHT} - {Style.RESET_ALL}"
-                    f"{Fore.YELLOW + Style.BRIGHT}Websocket Closed{Style.RESET_ALL}"
-                )
-                break
     
             finally:
                 if send_ping and not send_ping.done():
                     send_ping.cancel()
-                    try:
-                        await send_ping
-                    except asyncio.CancelledError:
-                        pass
-                    except Exception:
-                        pass
                 if session:
                     await session.close()
 
