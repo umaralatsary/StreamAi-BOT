@@ -320,7 +320,7 @@ class MinionLab:
         send_ping = None
         session = None
         retry_count = 0
-        max_retries = 10
+        max_retries = 5
     
         while True and retry_count < max_retries:
             try:
@@ -649,7 +649,7 @@ class MinionLab:
                             try:
                                 await asyncio.wait_for(
                                     asyncio.gather(monitor_task, shielded_batch),
-                                    timeout=180 # 3 minutes per batch
+                                    timeout=300 # 5 minutes per batch
                                 )
                             except asyncio.TimeoutError:
                                 monitor_task.cancel()
