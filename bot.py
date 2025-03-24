@@ -274,7 +274,7 @@ class MinionLab:
             "Content-Type": "application/json"
         }
         try:
-            response = await asyncio.to_thread(requests.post, url=url, headers=headers, data=data, proxy=proxy, timeout=30, impersonate="safari15_5")
+            response = await asyncio.to_thread(requests.post, url=url, headers=headers, data=data, proxy=proxy, timeout=60, impersonate="safari15_5")
             response.raise_for_status()
             result = response.json()
             return result['data']
@@ -321,7 +321,7 @@ class MinionLab:
         session = None
         retry_count = 0
         max_retries = 5
-        connection_timeout = 30
+        connection_timeout = 60
     
         while True and retry_count < max_retries:
             try:
