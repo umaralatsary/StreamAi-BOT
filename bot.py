@@ -321,7 +321,7 @@ class MinionLab:
         session = None
         retry_count = 0
         max_retries = 5
-        connection_timeout = 60
+        connection_timeout = None
     
         while True and retry_count < max_retries:
             try:
